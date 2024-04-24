@@ -11,3 +11,8 @@ dist/
 .coverage
 .coverage.*
 env/
+inputs/
+outputs/
+venv/
+output_graphs/
+*.log.*

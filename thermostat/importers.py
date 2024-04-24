@@ -162,7 +162,10 @@ def normalize_utc_offset(utc_offset):
         raise TypeError(f"Invalid UTC offset: can't convert {utc_offset} to a valid offset. Please prefix with + or -. ({e})")
 
 
-def from_csv(metadata_filename, verbose=False, save_cache=False, shuffle=True,
+def from_csv(metadata_filename, verbose=False, save_cache=False, shuffle=True, 
+             hvac_thermostat=None, 
+             use_setpoint_comfort_temp = False,
+             use_setpoint_savings = False,
              cache_path=None,):
     """
     Creates Thermostat objects from data stored in CSV files.
@@ -223,7 +226,11 @@ def from_csv(metadata_filename, verbose=False, save_cache=False, shuffle=True,
         metadata_filename=metadata_filename,
         verbose=verbose,
         save_cache=save_cache,
-        cache_path=cache_path)
+        cache_path=cache_path,
+        hvac_thermostat = hvac_thermostat,
+        use_setpoint_comfort_temp=use_setpoint_comfort_temp,
+        use_setpoint_savings=use_setpoint_savings
+        )
     result_list = p.imap(multiprocess_func_partial, metadata.iterrows())
     p.close()
     p.join()
@@ -245,7 +252,9 @@ def from_csv(metadata_filename, verbose=False, save_cache=False, shuffle=True,
     return iter(results), error_list
 
 
-def _multiprocess_func(metadata, metadata_filename, verbose=False, save_cache=False, cache_path=None):
+def _multiprocess_func(metadata, metadata_filename, verbose=False, save_cache=False, 
+                       cache_path=None, hvac_thermostat = None,
+                       use_setpoint_comfort_temp = False, use_setpoint_savings = False):
     """ This function is a partial function for multiproccessing and shares the same arguments as from_csv.
     It is not intended to be called directly."""
     _, row = metadata
@@ -277,6 +286,9 @@ def _multiprocess_func(metadata, metadata_filename, verbose=False, save_cache=Fa
             interval_data_filename=interval_data_filename,
             save_cache=save_cache,
             cache_path=cache_path,
+            hvac_thermostat = hvac_thermostat,
+            use_setpoint_comfort_temp = use_setpoint_comfort_temp,
+            use_setpoint_savings = use_setpoint_savings
         )
     except (ZIPCodeLookupError, StationLookupError, ClimateZoneLookupError) as e:
         # Could not locate a station for the thermostat. Warn and skip.
@@ -300,7 +312,9 @@ def _multiprocess_func(metadata, metadata_filename, verbose=False, save_cache=Fa
 
 def get_single_thermostat(thermostat_id, zipcode,
                           heat_type, heat_stage, cool_type, cool_stage,
-                          utc_offset, interval_data_filename, save_cache=False, cache_path=None):
+                          utc_offset, interval_data_filename, save_cache=False, cache_path=None,
+                          hvac_thermostat = None,
+                          use_setpoint_comfort_temp = False, use_setpoint_savings = False):
     """ Load a single thermostat directly from an interval data file.
 
     Parameters
@@ -378,6 +392,8 @@ def get_single_thermostat(thermostat_id, zipcode,
 
     # load hourly time series values
     temp_in = _create_series(df.temp_in, hourly_index)
+    heating_setpoint = _create_series(df.controller_heating_setpoint, hourly_index)
+    cooling_setpoint = _create_series(df.controller_cooling_setpoint, hourly_index)
 
     utc_offset = normalize_utc_offset(utc_offset)
     temp_out = get_indexed_temperatures_eeweather(station, hourly_index_utc - utc_offset)
@@ -406,6 +422,11 @@ def get_single_thermostat(thermostat_id, zipcode,
         climate_zone,
         temp_in,
         temp_out,
+        heating_setpoint,
+        cooling_setpoint,
+        hvac_thermostat,
+        use_setpoint_comfort_temp,
+        use_setpoint_savings,        
         cool_runtime,
         heat_runtime,
         auxiliary_heat_runtime,
